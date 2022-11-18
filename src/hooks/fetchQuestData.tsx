@@ -2,6 +2,7 @@ import pangu from 'pangu'
 import { useState } from 'react'
 import useSWR from 'swr'
 import {
+  kcanotifyDataContext,
   kcwikiDataContext,
   Quest,
   QuestNode,
@@ -27,20 +28,40 @@ const spacingQuest = (quest: Quest) => {
 export const useFilterData = <T, S extends T>(
   predicate: (questdata: Quest) => boolean
 ) => {
-  const { data, error } = useSWR<QuestNode>(
+  const fetcher = (url: string) => fetch(url).then((res) => res.json())
+  const { data: questsCn, error } = useSWR<QuestNode>(
     kcwikiDataContext().DATA_URL,
-    (url: string) => fetch(url).then((res) => res.json())
+    fetcher
+  )
+  const { data: questJp } = useSWR<QuestNode>(
+    kcanotifyDataContext().DATA_URL,
+    fetcher
   )
   const beautifyQuests = (data: QuestNode): QuestNode => {
     Object.entries(data).forEach((quest) => spacingQuest(quest[1]))
     return data
   }
+  const replaceQuestName = (
+    tobeReplace: QuestNode,
+    replace: QuestNode
+  ): QuestNode => {
+    Object.entries(tobeReplace).forEach((quest) => {
+      const jp = replace[quest[0]]
+      if (jp === undefined) return
+      quest[1].name = jp.name
+    })
+    return tobeReplace
+  }
   return {
     filted:
-      data === undefined
+      questsCn === undefined
         ? []
-        : Object.values(beautifyQuests(data)).filter(predicate),
-    isLoading: !error && !data,
+        : questJp === undefined
+        ? Object.values(beautifyQuests(questsCn)).filter(predicate)
+        : Object.values(
+            replaceQuestName(beautifyQuests(questsCn), questJp)
+          ).filter(predicate),
+    isLoading: !error && !questsCn,
     isError: error,
   }
 }
